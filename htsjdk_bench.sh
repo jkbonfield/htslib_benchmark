@@ -4,6 +4,8 @@ time="real %e\tuser %U\tsys %S\tmem %M\texit %x"
 test_view=${TEST_VIEW:-/home/ubuntu/htslib/test/test_view}
 samtools=${SAMTOOLS:-/home/ubuntu/samtools/samtools}
 ref=${REF:-../Homo_sapiens.GRCh38_full_analysis_set_plus_decoy_hla.fa}
+htsjdk=${HTSJDK:-$HOME/htsjdk/build/libs/htsjdk-2.22.0-SNAPSHOT.jar}
+picard=${PICARD:-picard.jar}
 
 java_opts=-Xmx8g
 
@@ -15,6 +17,11 @@ echo "Input:   $file"
 echo "Seqs:    `$samtools view -@8 -c $file`"
 echo
 
+if [ "$threads" != "0" ]
+then
+    java_opts="$java_opts -Dsamjdk.use_async_io_read_samtools=true -Dsamjdk.use_async_io_write_samtools=true"
+fi
+
 
 purge_cache() {
     sudo bash -c 'sync;echo 3 > /proc/sys/vm/drop_caches'
@@ -22,7 +29,7 @@ purge_cache() {
 
 load_cache() {
     echo -n "< INPUT\t"
-    /usr/bin/time -f "$time" bash -c "java $java_opts -cp picard.jar:. TestBamRead $file $ref >/dev/null"
+    /usr/bin/time -f "$time" bash -c "java $java_opts -cp $htsjdk:. TestBamRead $file $ref >/dev/null"
 }
 
 
@@ -41,18 +48,18 @@ do
 #    # First encode is to /dev/null, to benchmark algorithm.
 #    # Use of bash -c to muzzle chatty programs.
 #    echo -n "> $fmt\t"
-#    /usr/bin/time -f "$time" bash -c "java $java_opts -cp picard.jar:. TestBamReadWrite $file /dev/null $ref 2>/dev/null"
+#    /usr/bin/time -f "$time" bash -c "java $java_opts -cp $htsjdk:. TestBamReadWrite $file /dev/null $ref 2>/dev/null"
 
     # Second time to file so we can do the decode speed tests
     echo -n "] $fmt\t"
-    /usr/bin/time -f "$time" bash -c "java $java_opts -cp picard.jar:. TestBamReadWrite $file $file.$fmt $ref 2>/dev/null"
+    /usr/bin/time -f "$time" bash -c "java $java_opts -cp $htsjdk:. TestBamReadWrite $file $file.$fmt $ref 2>/dev/null"
 
     for rep in `seq 1 3`
     do
 	# Time READ.  Should be in cache atm
 	[ "$cache" = "pc" ] && purge_cache
 	echo -n "< $fmt\t"
-	/usr/bin/time -f "$time" bash -c "java $java_opts -cp picard.jar:. TestBamRead $file.$fmt $ref >/dev/null"
+	/usr/bin/time -f "$time" bash -c "java $java_opts -cp $htsjdk:. TestBamRead $file.$fmt $ref >/dev/null"
     done
 
     if [ $fmt != "sam" ]
@@ -62,7 +69,7 @@ do
 	    # Time INDEX.  Should be in cache atm
 	    [ "$cache" = "pc" ] && purge_cache
 	    echo -n "I $fmt\t"
-	    /usr/bin/time -f "$time" bash -c "java $java_opts -jar picard.jar BuildBamIndex I=$file.$fmt VERBOSITY=ERROR QUIET=true VALIDATION_STRINGENCY=SILENT 2>/dev/null"
+	    /usr/bin/time -f "$time" bash -c "java $java_opts -jar $picard BuildBamIndex I=$file.$fmt VERBOSITY=ERROR QUIET=true VALIDATION_STRINGENCY=SILENT 2>/dev/null"
 	done
     fi
 

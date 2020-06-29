@@ -13,23 +13,28 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 
-public class TestBamRead {
+public class TestBamReadWrite {
 
 public static void main(String[] args) throws IOException {
     SamReader reader = SamReaderFactory
 	.makeDefault()
 	.validationStringency(ValidationStringency.SILENT)
-	.referenceSequence(new File(args[1]))
-	.open(new File(args[0]));
+	.setUseAsyncIo(true)
+	.open(new File(args[0]));        // input
 
-    int i = 0;
+    final SAMFileWriter writer = new SAMFileWriterFactory()
+	.setUseAsyncIo(true)
+	.makeWriter(reader.getFileHeader(),
+		    true,
+		    new File(args[1]),   // output
+		    new File(args[2]));  // reference
+
     for (SAMRecord record : reader) {
-	i++;
+	writer.addAlignment(record);
     }
 
-    System.out.println(i);
-
     reader.close();
+    writer.close();
 }
 
 }
